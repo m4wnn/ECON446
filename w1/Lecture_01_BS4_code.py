@@ -13,6 +13,8 @@ from bs4 import BeautifulSoup
 import requests
 import pandas as pd
 import toolz as tz
+
+from typing import Callable, List, Dict, Tuple, Any
 # %%
 # We talk about user agents later so run and ignore
 user_agent_list = [
@@ -24,44 +26,49 @@ user_agent_list = [
 ] 
 
 # %%
-headers = {'User-Agent': user_agent_list[0]}
+headers = {'User-Agent': user_agent_list[2]}
 # %% [markdown]
 """
-### Step 1: Get the HTML Content of the Website
-Pull from and Explore Beautiful Soup Objects
+1. Get the HTML Content of the Website.
+2. Find the pricing inside of the website and clean it.
+3. Make a function out or it.
 """
 # %%
 # Iterate until getting a 404 Not found Error.
 #URL = lambda page: f'https://www.apartments.com/los-angeles-ca/{page}/'
 URL = lambda page: f'https://www.trulia.com/CA/Los_Angeles/{page}_p/'
 # %%
-def response(page_number: int, URL: function) -> BeautifulSoup:
+def get_html(URL: Callable[[str], str], page_number: str = '') -> BeautifulSoup:
     bs_res = tz.pipe(URL(page_number),
         lambda url: requests.get(url, headers=headers),
         lambda x: BeautifulSoup(x.content, 'html.parser'),
     )
     return bs_res 
 # %%
-prices = tz.pipe(response,
-    lambda x: x.find_all('div', attrs={'data-testid': 'property-price'}),
-    lambda x: [y.text for y in x],
-    lambda x: [y.replace('$', '') for y in x],
-    lambda x: [y.replace(',', '') for y in x],
-    lambda x: [float(y) for y in x],
-)
+def get_prices(response: BeautifulSoup) -> List[float]:
+    prices = tz.pipe(response,
+        lambda x: x.find_all('div', attrs={'data-testid': 'property-price'}),
+        lambda x: [y.text for y in x],
+        lambda x: [y.replace('$', '') for y in x],
+        lambda x: [y.replace(',', '') for y in x],
+        lambda x: [float(y) for y in x],
+    )
+    return prices
 
-print(prices)
-# %% [markdown]
-"""
-Find the pricing inside of the website
-"""
-# %% [markdown]
-"""
-Clean the Prices
-"""
-# %% [markdown]
-"""
-Make a function out or it.
-"""
+# %%
+# %%
+response1 = get_html(URL, page_number='10000000000000000000000000000000000')
+response2 = get_html(URL, page_number='20000000000000000000000000000000000')
+response3 = get_html(URL, page_number='4')
+# %%
+prices1 = get_prices(response1)
+prices2 = get_prices(response2)
+print(prices1)
+print(prices2)
+# %%
+# %%
 
-
+def all_pages_prices(URL: Callable[[str], str], page_number: str = '') -> List[float]:
+    response = get_html(URL, page_number)
+    prices = get_prices(response)
+    return prices
