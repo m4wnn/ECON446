@@ -27,7 +27,7 @@
 #     </div>
 # </div>
 # %% [markdown]
-# ## Web Scraping Using Beautiful Soup
+# ## Web Crawling Tables
 # %% [markdown]
 # <div style="border: 1px solid black; border-radius: 5px; overflow: hidden;">
 #     <div style="background-color: black; color: white; padding: 5px; text-align: left;">
