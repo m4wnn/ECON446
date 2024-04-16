@@ -20,8 +20,10 @@
 #     <h4>Applications of Cloud Computing and Big Data - ECON 446</h3>
 #     <div style="padding: 20px 0;">
 #         <hr style="border: 0; height: 1px; background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));">
-#         <p><em>Mauricio Vargas-Estrada</em><br>
-#         Master Of Quantitative Economics<br>
+#         <p><em>Bella Rakhlina</em><br>
+#         <em>Lora Yovcheva</em><br>
+#         <em>Mauricio Vargas-Estrada</em><br>
+#         <br>Master Of Quantitative Economics<br>
 #         University of California - Los Angeles</p>
 #         <hr style="border: 0; height: 1px; background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));">
 #     </div>
