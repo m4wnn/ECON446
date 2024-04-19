@@ -19,12 +19,22 @@
 import requests
 import string
 import re
-import pandas as pd
 import toolz
-from rich import inspect
+import time
+import pickle
+import pandas as pd
+import numpy as np
+
 from bs4 import BeautifulSoup
-from tqdm import tqdm
 from multiprocessing import Pool
+from tqdm import tqdm
+from rich import inspect
+from pprint import pprint
+
+from selenium import webdriver
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 # %%
 headers = {
     'Accept-Encoding': 'gzip, deflate, br',
@@ -138,13 +148,16 @@ print(companies.query("type=='public'"))
 <!--*!{sections/q01-c.html}-->
 """
 # %%
+# Cleaning the ticker column.
 companies['clean_ticker'] = [
     re.match(r"[^,.!? ]+", x).group(0)
     for x in companies.ticker
 ]
 # %%
+# Calculating the length of the ticker.
 companies['len_ticker'] = [len(x) for x in companies.clean_ticker]
 # %%
+# Counting the percentage of companies with each length of ticker.
 len_ticker_pct = toolz.pipe(
     companies[['clean_ticker', 'len_ticker']],
     lambda x: x.drop_duplicates(),
@@ -169,13 +182,106 @@ for i, row in len_ticker_pct.iterrows():
 """
 <!--*!{sections/q02-a.html}-->
 """
+# %%
+# User agent to simulate a browser in selenium.
+options = Options()
+options.set_preference("general.useragent.override", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
 
 # %%
-URL = "https://www.reddit.com"
+# Initialize the browser.
+driver = webdriver.Firefox(options=options)
+# %%
+# Open the website in the browser.
+driver.get("https://www.reddit.com")
+time.sleep(5)
+
+# Verifying the numbers of posts extracted from the page.
+num_posts_before = 0
+
+# posts inside the website to scroll down.
+body = driver.find_element(By.TAG_NAME, 'body')
+
+start_time = time.time()
+time_limit_scroll = 600 # 10 minutes
+
+# Scrolling down the page until the time limit is reached.
+print('Scrolling down the page...')
+while time.time() - start_time < time_limit_scroll:
+    print(f'Time elapsed: {time.time() - start_time:.2f} seconds')
+    # Extracting the articles from the page.
+    posts = driver.find_elements(By.XPATH, '//article[@class="w-full m-0"]')
+    
+    # Verifying that the number of posts is changing in each iteration.
+    if len(posts) == num_posts_before:
+        print('Something went wrong. The number of posts is not changing. Stopping..')
+        break  
+    else:
+        num_posts_before = len(posts)
+
+    # Simulate pressing the END key to scroll down the page.
+    body.send_keys(Keys.END)
+
+    # Wait for the page to load.
+    time.sleep(6)
+print('Time limit reached.')
+# %%
+# Extracting the html for each post.
+html_content = [x.get_attribute('outerHTML') for x in posts]
+ 
+# %%
+# Save the html content to a pickle file.
+with open('data/reddit_posts.pkl', 'wb') as f:
+    pickle.dump(html_content, f)
+
+# %%
+# Close the browser.
+driver.quit()
+
+# %%
+# Load the html content from the pickle file to avoid running the code again.
+#with open('data/reddit_posts.pkl', 'rb') as f:
+    #html_content = pickle.load(f)
+
+# %%
+# Parsing each post with BeautifulSoup.
+html_content = [BeautifulSoup(x, 'html.parser') for  x in html_content]
+# %%
+# Extracting only the timestamps for each post.
+timestamps = [x.find('time').get_attribute_list('datetime')[0] for x in html_content]
+# %%
+print(f'Total number of posts extracted: {len(timestamps)}')
+print('First 10 timestamps:')
+pprint(timestamps[0:9])
 # %% [markdown]
 """
 <!--*!{sections/q02-b.html}-->
 """
+# %%
+titles = [x.find('article').get_attribute_list('aria-label')[0] for x in html_content]
+# %%
+text_div_class = re.compile(r'.*feed-card-text-preview.*')
+texts = []
+for post in html_content:
+    tmp = post.find_all(
+        'div',
+        class_ = lambda x : x and text_div_class.match(x)    
+    )
+    if tmp:
+        tmp = tmp[0].text
+    else:
+        tmp = np.nan
+    texts.append(tmp)
+# %%
+post_df = pd.DataFrame({
+    'timestamp': timestamps,
+    'title': titles,
+    'text': texts
+})
+
+# %%
+# Printing the first 10 posts with text.
+print('First 5 posts with text:')
+print(post_df.query('text.notna()').head(5))
 # %% [markdown]
 """
 <!--*!{sections/q03.md}-->
