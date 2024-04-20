@@ -330,9 +330,35 @@ print(post_df.query('text.notna()').head(5))
 #     <div style="padding: 10px;">
 #         Using RegEx, get all the urls of ladder faculty profiles for UCLA Economics
 # </div>
-
 # %%
 URL = "https://economics.ucla.edu/faculty/ladder"
+
+# %%
+# Getting the flex table of the ladder faculty.
+req_ladder = requests.get(URL, headers=headers)
+
+# %%
+# Extracting the name and url for each profile in the ladder faculty.
+tmp = re.compile(r'flex_column av_one_fourth.*')
+profiles_info = toolz.pipe(
+    req_ladder,
+    lambda x: x.content,
+    lambda x: BeautifulSoup(x, 'html.parser'),
+    lambda x : x.find(
+        'div',
+        {'id': 'wpv-view-layout-974-CATTR0494cfbfb8d3e1b3152203680573333f'}
+    ),
+    lambda x: x.find_all(
+        'div',
+        class_ = lambda x : x and tmp.match(x)
+    ),
+    lambda x: [y.find('h3') for y in x],
+    lambda x: {
+        'name': [y.text for y in x],
+        'url': [y.find('a')['href'] for y in x]
+    },
+    lambda x: pd.DataFrame(x)
+)
 # %% [markdown]
 # <div style="border: 1px solid black; border-radius: 5px; overflow: hidden;">
 #     <div style="background-color: black; color: white; padding: 5px; text-align: left;">
@@ -341,6 +367,46 @@ URL = "https://economics.ucla.edu/faculty/ladder"
 #     <div style="padding: 10px;">
 #         Webcrawl the links from A and use RegEx to get all the emails and phone numbers of ladder faculty profiles.
 # </div>
+# %%
+# Crawling the profiles urls.
+crawled_info = []
+for url in tqdm(profiles_info['url']):
+    tmp = requests.get(url, headers=headers).content
+    crawled_info.append(tmp)
+    time.sleep(10)
+# %%
+# Extracting the email and phone from the crawled info using regex.
+regex_email = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
+regex_phone = re.compile(r'([\+]?[(]?[0-9]{3}[)]?[-\s\.][0-9]{3}[-\s\.][0-9]{4,6})')
+email = []
+phone = []
+for raw in crawled_info:
+    tmp = BeautifulSoup(raw, 'html.parser')
+    tmp_email = tmp.find(string=regex_email)
+    tmp_phone = tmp.find(string=regex_phone)
+
+    if tmp_email:
+        email.append(tmp_email)
+    else:
+        email.append(np.nan)
+    
+    if tmp_phone:
+        phone.append(tmp_phone)
+    else:
+        phone.append(np.nan)
+
+# %%
+profiles_info['email'] = email
+profiles_info['phone'] = phone
+# %%
+# Printing those profiles with phone number.
+print(profiles_info.query('phone.notna()').head(10))
+# %%
+tmp = f"""
+Number of profiles: {profiles_info.shape[0]}
+Number of profiles with phone number: {profiles_info.query('phone.notna()').shape[0]}
+"""
+print(tmp)
 # %% [markdown]
 # ## Selenium
 # %% [markdown]
