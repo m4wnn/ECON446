@@ -19,18 +19,36 @@ def random_sleep(minimum=2, maximum=5):
     time.sleep(random.uniform(minimum, maximum))
 
 # %%
+#def human_like_scroll(driver):
+    #"""Simulate human-like scrolling behavior."""
+    #scroll_script = "window.scrollTo(0, document.body.scrollHeight/2);"
+    #driver.execute_script(scroll_script)
+    #random_sleep(1, 3)
+    #scroll_script = "window.scrollTo(0, document.body.scrollHeight);"
+    #driver.execute_script(scroll_script)
+# %%
 def human_like_scroll(driver):
-    """Simulate human-like scrolling behavior."""
-    scroll_script = "window.scrollTo(0, document.body.scrollHeight/2);"
-    driver.execute_script(scroll_script)
-    random_sleep(1, 3)
-    scroll_script = "window.scrollTo(0, document.body.scrollHeight);"
-    driver.execute_script(scroll_script)
+    """Simulate human-like scrolling behavior more slowly."""
+    total_height = driver.execute_script("return document.body.scrollHeight")
+    current_scroll_position = 0
+    increment = total_height / 20  # Divide the scroll into smaller steps
+
+    while current_scroll_position <= total_height:
+        # Scroll down to the next increment
+        driver.execute_script(f"window.scrollTo(0, {current_scroll_position});")
+        current_scroll_position += increment
+
+        # Wait a random time between scrolls to mimic human behavior
+        time.sleep(random.uniform(0.5, 30))  # Adjust timing as needed
+
+    # Finally, scroll to the very bottom to ensure all lazy loaded items are triggered
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(random.uniform(15, 20))  # A final pause at the bottom
 
 # %%
 def switch_tor_circuit():
     """Use Stem to switch Tor circuit."""
-    with Controller.from_port(port=9151) as controller:
+    with Controller.from_port(port=9251) as controller:
         controller.authenticate()
         controller.signal(Signal.NEWNYM)
 
@@ -53,7 +71,6 @@ def zipcode_scrapping(zipcode):
 
     regex_property = re.compile(r'placeholder_property_\d*')
     property_info = []
-
     try:
         while True:
             switch_tor_circuit()  # Switch Tor circuit before loading the page
@@ -101,6 +118,6 @@ def zipcode_scrapping(zipcode):
 
 # %%
 # Run the function
-results = zipcode_scrapping(90001)
+results = zipcode_scrapping(90051)
 
 # %%
