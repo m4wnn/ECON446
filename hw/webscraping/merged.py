@@ -1,7 +1,7 @@
 # ---
 # jupyter:
 #   jupytext:
-#     cell_metadata_filter: -all
+#     cell_metadata_filter: title,-all
 #     formats: py:percent,ipynb
 #     text_representation:
 #       extension: .py
@@ -34,7 +34,7 @@ import string
 import re
 import toolz
 import time
-import pickle
+import pickle as pkl
 import pandas as pd
 import numpy as np
 import os
@@ -463,6 +463,18 @@ To facilitate webscraping, we are integrating `Selenium` with `Tor`. The followi
 #     <div style="padding: 10px;">
 #         Use Selenium to scrape valuable information from your website and store in a dataframe.
 # </div>
+# %% [markdown]
+"""
+> In this section it is defined the functions that will be used to scrape the website. The functions are defined in the following order:
+> - `save_data`: Function to save data to a pickle file.
+> - `random_sleep`: Function to generate a random sleep time to mimic human behavior.
+> - `human_like_scroll`: Function to simulate human-like scrolling behavior more slowly.
+> - `switch_tor_circuit`: Function to switch the Tor circuit.
+> - `get_tor_version`: Function to get the Tor version.
+> - `get_current_circuit`: Function to retrieve and print the current Tor circuit.
+> - `zipcode_scrapping`: Function to scrape the website using Tor and Selenium.
+> After defining the functions, the neighborhoods of interest are scraped using the `zipcode_scrapping` function. The results are saved to pickle files for further analysis.
+"""
 # %%
 def save_data(data, filename):
     script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -667,8 +679,156 @@ neighborhoods = [
 for n in neighborhoods:
     results = zipcode_scrapping(n)
     # Saving the results to a pickle file for further analysis.
-    save_data(results, f'{n}_results.pkl')
+    save_data(results, f'results/{n}_results.pkl')
+# %% [markdown]
+"""
+> In this section, the information extracted from the website is joined and cleaned. The data is then saved to a CSV file for further analysis.
+> Some properties have a range for the number of bedrooms, bathrooms, and area. In these cases, the minimum and maximum values are extracted and stored in separate columns. The same is done for the rent.
+> Even though the previous section extracted the information, for simplicity of development, the following conde loads the information from the pickle files, this way the code can be run without the need to scrape the website again.
+"""
+# %%
+FILES_PATH = os.path.join(
+    'results'
+)
+# %% Joining the information for each neighborhood.
+raw = []
+ngh = []
 
+re_ngh = re.compile(r'\S+(?=_results\.pkl)')
+
+for file in os.listdir(FILES_PATH):
+    tmp_file = os.path.join(FILES_PATH, file)
+    
+    with open(tmp_file, 'rb') as f:
+        tmp_info = pkl.load(f)
+    
+    raw.extend(tmp_info)
+    ngh.extend(re_ngh.findall(file) * len(tmp_info))
+# %%
+raw_soup = [BeautifulSoup(x, 'html.parser') for x in raw]
+# %%
+rent = [
+    x.find('div', {'data-testid':'card-price'}).text
+    for x in raw_soup
+]
+# %%
+rent_min = [
+    re.findall(r'(?<=^\$)\d+,\d+(?=$|\s\-)', x)
+    for x in rent
+]
+rent_min = [x[0] if x else '' for x in rent_min]
+rent_min = [x.replace(',', '') if x != '' else '' for x in rent_min]
+rent_min = [float(x) if x != '' else np.nan for x in rent_min]
+# %%
+rent_max = [
+    re.findall(r'(?<=\s\-\s\$)\d+,\d+', x)
+    for x in rent
+]
+rent_max = [x[0] if x else '' for x in rent_max]
+rent_max = [x.replace(',', '') if x != '' else '' for x in rent_max]
+rent_max = [float(x) if x != '' else np.nan for x in rent_max]
+# %%
+n_beds = [
+    x.find('li', {'data-testid':'property-meta-beds'})
+    for x in raw_soup
+]
+n_beds = [x.text if x else '' for x in n_beds]
+# %%
+n_beds_min = [
+    re.findall(r'(?<=^)(\d+|Studio)', x)
+    for x in n_beds
+]
+n_beds_min = [x[0] if x else np.nan for x in n_beds_min]
+# %%
+n_beds_max = [
+    re.findall(r'(?<=\-\s)\d+', x)
+    for x in n_beds
+]
+n_beds_max = [x[0] if x else np.nan for x in n_beds_max]
+# %%
+n_baths = [
+    x.find('li', {'data-testid':'property-meta-baths'})
+    for x in raw_soup
+]
+n_baths = [x.text if x else '' for x in n_baths]
+# %%
+n_baths_min = [
+    re.findall(r'(?<=^)\d+', x)
+    for x in n_baths
+]
+n_baths_min = [x[0] if x else np.nan for x in n_baths_min]
+n_baths_min = [float(x) if x != np.nan else np.nan for x in n_baths_min]
+# %%
+n_baths_max = [
+    re.findall(r'(?<=\-\s)\d+', x)
+    for x in n_baths
+]
+n_baths_max = [x[0] if x else np.nan for x in n_baths_max]
+n_baths_max = [float(x) if x != np.nan else np.nan for x in n_baths_max]
+# %%
+area = [
+    x.find('li', {'data-testid':'property-meta-sqft'})
+    for x in raw_soup
+]
+area = [x.text if x else '' for x in area]
+area =[
+    re.findall(r'(?<=sqft).+(?=\ssquare\sfeet)', x)
+    if x != '' else [] for x in area
+
+]
+area = [x[0] if x else '' for x in area]
+# %%
+area_min = [
+    re.findall(r'(?<=^)(\d{3}|\d+,\d+)', x)
+    for x in area
+]
+area_min = [x[0] if x else '' for x in area_min]
+area_min = [x.replace(',', '') if x != '' else '' for x in area_min]
+area_min = [float(x) if x != '' else np.nan for x in area_min]
+# %%
+area_max = [
+    re.findall(r'(?<=\-\s)(\d{3}|\d+,\d+)', x)
+    for x in area
+]
+area_max = [x[0] if x else '' for x in area_max]
+area_max = [x.replace(',', '') if x != '' else '' for x in area_max]
+area_max = [float(x) if x != '' else np.nan for x in area_max]
+# %%
+addss_1 = [
+    x.find('div', {'data-testid':'card-address-1'})
+    for x in raw_soup
+]
+addss_1 = [x.text if x else '' for x in addss_1]
+# %%
+addss_2 = [
+    x.find('div', {'data-testid':'card-address-2'})
+    for x in raw_soup
+]
+addss_2 = [x.text if x else '' for x in addss_2]
+# %%
+data = pd.DataFrame({
+    'neighborhood': ngh,
+    'rent_min': rent_min,
+    'rent_max': rent_max,
+    'n_beds_min': n_beds_min,
+    'n_beds_max': n_beds_max,
+    'n_baths_min': n_baths_min,
+    'n_baths_max': n_baths_max,
+    'area_min': area_min,
+    'area_max': area_max,
+    'address_1': addss_1,
+    'address_2': addss_2
+})
+# %%
+data.loc[data.rent_max.isna(), 'rent_max'] = data.loc[data.rent_max.isna(), 'rent_min']
+# %%
+data.loc[data.n_beds_max.isna(), 'n_beds_max'] = data.loc[data.n_beds_max.isna(), 'n_beds_min']
+# %%
+data.loc[data.n_baths_max.isna(), 'n_baths_max'] = data.loc[data.n_baths_max.isna(), 'n_baths_min']
+# %%
+data.loc[data.area_max.isna(), 'area_max'] = data.loc[data.area_max.isna(), 'area_min']
+# %%
+data.to_csv(os.path.join(FILES_PATH, '..', 'neighborhoods_around_ucla.csv'), index=False)
 # %% [markdown]
 # <div style="border: 1px solid black; border-radius: 5px; overflow: hidden;">
 #     <div style="background-color: black; color: white; padding: 5px; text-align: left;">
@@ -677,3 +837,25 @@ for n in neighborhoods:
 #     <div style="padding: 10px;">
 #         Write a short paragraph about the businesses or research that would use the data you scraped. Describe it's value and what it can be used for.
 # </div>
+# %% [markdown]
+"""
+We picked `Realtor.com` as the website to web scrape. We find great purpose in our task is there are many opportunities to capitalize on the information that can be accessed from the website. To begin with, it contains real estate listings with homes for sale or rents in and specific filters based on the clients' preferences, providing insights for an informed decision-making process. Some important features of interest that can be pulled from the website are:
+
+- Location (zip code, address) 
+- Price range
+- Type of property (house, apartment, condo, commercial)  
+- Number of bedrooms and bathrooms 
+- Amenities (pet friendly, in-unit laundry, pool, gym, parking, etc.)
+"""
+# %% [markdown]
+"""
+Overall, the information that can be scraped is very valuable and can be applied to many scenarios, such as: 
+
+1. **UCLA - Market and Academic Research:** The information can be used to access the details of properties in the neighboring areas near UCLA. In the context of a market research the price levels and home size can be utilized to show trends and fluctuations in pricing based on proximity to the campus. The university can provide help for informed decision making to the students who do not have much experience in renting a space, and average expectation to avoid fraudulent situations. In terms of academia, some topics of interest might be seasonality in demand and prices based on the quarter/semester school year structure, demand of a certain type or size of a home and etc. 
+2. **Real Estate Market Analysis:** Can aid real estate agencies and investors on the properties in demand. For example, if there are many large houses in the area and a shortage of affordable apartment buildings, which are of preference near a university, how can market opportunities be identified both for renters and investors in properties, often represented by real estate agencies. 
+3. **Urban Planning and Development:** This is another application that differentiates more from the previous two as the main benefit is in terms of public services, development, and infrastructure projects. Based on housing density and types, regulators can make informed decisions to upgrade the conditions in the area. 
+"""
+# %% [markdown]
+"""
+It is important to note that the information in Realtor.com is detailed and valuable for the above said uses. As their source of business, the owners of the website have used various levels of protection in order to prevent scraping from bots, which made our goal much more complex. 
+"""
